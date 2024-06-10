@@ -158,6 +158,13 @@ jobs:
           lz4 -d init_boot.img.lz4 init_boot.img
           rm init_boot.img.lz4
 
+      - name: Extract dtbo partition
+        if: env.need_update == 1
+        run: |
+          tar xvf ${{ env.ap_tar }} dtbo.img.lz4
+          lz4 -d dtbo.img.lz4 dtbo.img
+          rm dtbo.img.lz4
+
       - name: Update current version
         if: env.need_update == 1
         run: |
