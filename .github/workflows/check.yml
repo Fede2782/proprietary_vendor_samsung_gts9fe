@@ -203,4 +203,5 @@ jobs:
             boot.img
             vendor_boot.img
             init_boot.img
+            dtbo.img
             ${{ env.latest_shortversion }}_vendor_dlkm.zip
