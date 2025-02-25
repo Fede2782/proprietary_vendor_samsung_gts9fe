@@ -23,7 +23,7 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.2.2
         with:
           submodules: true
 
@@ -44,28 +44,22 @@ jobs:
 
       - name: Set up Node.js
         if: env.need_update == 1
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v4.2.0
         with:
           node-version: 'latest'
-
-      - name: Set up Python 3
-        if: env.need_update == 1
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.x'
 
       - name: Install dependencies
         if: env.need_update == 1
         run: |
           sudo apt-get update
-          sudo apt-get install -y liblz4-tool zip simg2img f2fs-tools
+          sudo apt-get install -y libprotobuf-dev liblz4-tool zip f2fs-tools linux-modules-extra-$(uname -r)
           sudo wget -O /usr/bin/samfirm https://github.com/DavidArsene/samfirm.js/releases/download/v0.3.0/samfirm.js && sudo chmod +x /usr/bin/samfirm
-
+          sudo modprobe erofs f2fs
+      
       - name: Fetch firmware
         if: env.need_update == 1
-        run:
-          samfirm -m ${{ matrix.model }} -r ${{ matrix.csc }} -i ${{ matrix.imei }}
-          
+        run: samfirm -m ${{ matrix.model }} -r ${{ matrix.csc }} -i ${{ matrix.imei }}
+
       - name: Get path of files
         if: env.need_update == 1
         run: |
@@ -121,16 +115,18 @@ jobs:
           tar cvf ${{ env.latest_shortversion }}_patched_vbmeta.tar vbmeta.img
           rm vbmeta.img
 
-      - name: Extract vendor and vendor_dlkm partition
+      - name: Extract vendor and vendor_dlkm partition and create lpdump
         if: env.need_update == 1
         run: |
           tar xvf ${{ env.ap_tar }} super.img.lz4
           lz4 -d super.img.lz4 super.img
           rm super.img.lz4
-          simg2img super.img super_raw.img
+          ./tools/bin/simg2img super.img super_raw.img
           rm super.img
           mv super_raw.img super.img
-          python3 tools/bin/lpunpack.py -p vendor,vendor_dlkm super.img .
+          ./tools/bin/lpdump super.img >> lpdump
+          ./tools/bin/lpunpack -p vendor super.img .
+          ./tools/bin/lpunpack -p vendor_dlkm super.img .
           rm super.img
           [[ -e vendor.img ]] && zip ${{ env.latest_shortversion }}_vendor.zip vendor.img
           [[ -e vendor_dlkm.img ]] && zip ${{ env.latest_shortversion }}_vendor_dlkm.zip vendor_dlkm.img
@@ -165,6 +161,14 @@ jobs:
           lz4 -d dtbo.img.lz4 dtbo.img
           rm dtbo.img.lz4
 
+      - name: Prepare AP and BL for release
+        if: env.need_update == 1
+        run: |
+          tar vf ${{ env.ap_tar }} --delete boot.img.lz4 dtbo.img.lz4 recovery.img.lz4 super.img.lz4 userdata.img.lz4 vbmeta.img.lz4 vbmeta_system.img.lz4 meta-data vendor_boot.img.lz4 init_boot.img.lz4
+          md5sum ${{ env.ap_tar }} | sed "s/  .*\//  /;s/\.md5$//" >> ${{ env.ap_tar }}
+          tar vf ${{ env.bl_tar }} --delete vbmeta.img.lz4
+          md5sum ${{ env.bl_tar }} | sed "s/  .*\//  /;s/\.md5$//" >> ${{ env.bl_tar }}
+
       - name: Update current version
         if: env.need_update == 1
         run: |
@@ -185,7 +189,7 @@ jobs:
 
       - name: Upload release assets
         if: env.need_update == 1
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v2.2.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -193,6 +197,7 @@ jobs:
           tag_name: "${{ env.latest_shortversion }}_${{ matrix.omc }}"
           name: "${{ env.latest_shortversion }} - ${{ matrix.model }} - ${{ matrix.omc }}"
           files: |
+            ${{ env.ap_tar }}
             ${{ env.bl_tar }}
             ${{ env.cp_tar }}
             ${{ env.home_csc_tar }}
@@ -205,3 +210,4 @@ jobs:
             init_boot.img
             dtbo.img
             ${{ env.latest_shortversion }}_vendor_dlkm.zip
+            lpdump
