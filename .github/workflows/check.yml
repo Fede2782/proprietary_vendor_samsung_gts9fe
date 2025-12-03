@@ -44,7 +44,7 @@ jobs:
 
       - name: Set up Node.js
         if: env.need_update == 1
-        uses: actions/setup-node@v4.2.0
+        uses: actions/setup-node@v6.1.0
         with:
           node-version: 'latest'
 
@@ -213,7 +213,7 @@ jobs:
 
       - name: Upload release assets
         if: env.need_update == 1
-        uses: softprops/action-gh-release@v2.2.1
+        uses: softprops/action-gh-release@v2.5.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
